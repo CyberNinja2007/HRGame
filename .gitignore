@@ -1,0 +1,7 @@
+.gjc/
+node_modules/
+tests/artifacts/
+tools/.venv/
+__pycache__/
+*.pyc
+.DS_Store
