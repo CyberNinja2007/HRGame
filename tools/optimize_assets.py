@@ -12,14 +12,13 @@ from __future__ import annotations
 
 import io
 import json
-import re
 import shutil
 import sys
 from pathlib import Path
 
 from fontTools import subset
 from fontTools.ttLib import TTFont
-from PIL import Image, ImageDraw
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "HR_Simulator_Static_HTML_Starter_Pack" / "assets"
@@ -72,6 +71,12 @@ UNICODE_RANGES = [
 CMAP_ALIASES = {
     0x041E: "O",   # CYRILLIC CAPITAL LETTER O  -> Latin O
     0x041F: "Pi",  # CYRILLIC CAPITAL LETTER PE -> Greek Pi
+}
+
+# Upstream cmap swap: U+041A (К) points at the accented Ќ glyph and U+040C at the plain one.
+# Force К to the identical plain Latin K glyph (overrides, unlike the aliases above).
+CMAP_OVERRIDES = {
+    0x041A: "K",   # CYRILLIC CAPITAL LETTER KA -> Latin K
 }
 
 # Code points the font genuinely lacks; rendered by the CSS fallback stack.
@@ -158,6 +163,9 @@ def build() -> None:
             for cp, glyph in CMAP_ALIASES.items():
                 assert glyph in glyph_order, glyph
                 table.cmap.setdefault(cp, glyph)
+            for cp, glyph in CMAP_OVERRIDES.items():
+                assert glyph in glyph_order, glyph
+                table.cmap[cp] = glyph
     opts = subset.Options()
     opts.flavor = "woff2"
     opts.layout_features = ["*"]
@@ -212,6 +220,7 @@ def check() -> int:
         need(FONT_OUT.stat().st_size <= BUDGET["font"], f"font {FONT_OUT.stat().st_size} > {BUDGET['font']}")
         cmap = TTFont(FONT_OUT).getBestCmap()
         need(all(ord(c) in cmap for c in "АБВОПабвопЁёЙйЖжЯя«»—–…№"), "font subset lacks required Cyrillic/punctuation")
+        need(all(cmap.get(cp) == cmap.get(ord(g)) for cp, g in ((0x041A, "K"), (0x041E, "O"))), "font subset: К/О must use the plain Latin K/O glyphs (upstream cmap swap)")
     need(OFL_OUT.exists(), "OFL.txt missing next to font")
     stray = [p.relative_to(ROOT) for p in OUT.rglob("*") if p.suffix.lower() in {".ttf", ".otf"}]
     need(not stray, f"raw font files shipped: {stray}")

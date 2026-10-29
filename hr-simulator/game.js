@@ -629,11 +629,23 @@
     preload(index + 2);
   }
 
+  // «Далее» ignores pointer input for ARM_DELAY_MS after new content appears, so the second click of a
+  // human-paced double click (or a second tap) cannot skip the screen that just opened. aria-disabled
+  // (not disabled) keeps focus on the button; keyboard activation (click.detail === 0) stays live.
+  var primaryArmTimer = 0;
+  function armPrimary() {
+    el.primary.setAttribute('aria-disabled', 'true');
+    window.clearTimeout(primaryArmTimer);
+    primaryArmTimer = window.setTimeout(function () { el.primary.removeAttribute('aria-disabled'); }, ARM_DELAY_MS);
+  }
+  function primaryArming() { return el.primary.getAttribute('aria-disabled') === 'true'; }
+
   function focusForStep() {
     var s = steps[state.step];
     if (state.phase === 'choosing') return; // armChoices focuses the first choice once it is usable
     if (!el.primary.hidden) {
       el.primary.focus({ preventScroll: true });
+      armPrimary();
     } else if (s) {
       el.title.focus({ preventScroll: true });
     }
@@ -649,6 +661,7 @@
     panel.classList.remove('is-swapping');
     renderStep(0, { instant: true });
     el.primary.focus({ preventScroll: true });
+    armPrimary();
     preload(1);
   }
 
@@ -669,6 +682,7 @@
     if (s.lines && !isLastLine()) {
       state.lineIndex += 1;
       renderLine(s.lines[state.lineIndex]);
+      armPrimary();
       return;
     }
     go(state.step + 1);
@@ -704,7 +718,10 @@
 
   /* ---------------- events ---------------- */
 
-  el.primary.addEventListener('click', primaryIntent);
+  el.primary.addEventListener('click', function (e) {
+    if (e.detail > 0 && primaryArming()) return;
+    primaryIntent();
+  });
   el.secondary.addEventListener('click', function () {
     if (state.step === 0 && state.resumeStep != null) restart();
   });
@@ -722,7 +739,7 @@
     if (state.phase !== 'typing' && state.phase !== 'reading') return;
     var sel = window.getSelection && window.getSelection();
     if (sel && !sel.isCollapsed) return;
-    if (state.phase === 'reading' && el.primary.hidden) return;
+    if (state.phase === 'reading' && (el.primary.hidden || primaryArming())) return;
     var s = steps[state.step];
     // Restarting is destructive: on the final ending line only the button restarts.
     if (state.phase === 'reading' && s.type === 'ending' && isLastLine()) return;

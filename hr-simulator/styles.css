@@ -142,6 +142,7 @@ button { font: inherit; color: inherit; }
   left: 8px;
   right: 8px;
   bottom: calc(8px + var(--safe-b));
+  height: calc(66vh - 8px);
   height: calc(66dvh - 8px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -324,7 +325,6 @@ button { font: inherit; color: inherit; }
   background: #fffdf8;
   border: 3px solid var(--frame);
 }
-.notice-title { font-weight: 700; color: var(--navy); }
 
 .cast {
   display: grid;
@@ -398,6 +398,7 @@ button { font: inherit; color: inherit; }
   .panel {
     left: max(8px, env(safe-area-inset-left, 0px));
     right: max(8px, env(safe-area-inset-right, 0px));
+    height: calc(100vh - 3.25rem - 8px);
     height: calc(100dvh - 3.25rem - 8px);
   }
   .cast { grid-template-columns: repeat(3, minmax(0, 1fr)); }

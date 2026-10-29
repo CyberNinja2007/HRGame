@@ -112,3 +112,22 @@ test('(d) Space on #primary advances exactly one line @motion', async ({ page, g
   await expect(page.locator('.stage')).toHaveAttribute('data-step-type', 'intro-lead');
   await expect(primary(page)).toBeFocused();
 });
+
+test.describe('reduced motion', () => {
+  test.use({ reducedMotion: 'reduce' });
+
+  test('(f) a human-paced double click (150 ms apart) opens exactly one new screen', async ({ page, gameUrl }) => {
+    await open(page, gameUrl);
+    await advanceTo(page, 'intro-cast');
+    await page.waitForLoadState('networkidle'); // Intro D images cached: its commit is immediate
+    await primary(page).click(); // first click of the pair
+    await waitStep(page, 'intro-lead');
+    const box = await primary(page).boundingBox();
+    await page.waitForTimeout(150);
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(400);
+    // Instant text: without the guard the second click would show line 2 (Maria's thought).
+    await expect(page.locator('.dialogue')).toHaveText(/^В архиве/);
+    await expect(primary(page)).toBeFocused();
+  });
+});
