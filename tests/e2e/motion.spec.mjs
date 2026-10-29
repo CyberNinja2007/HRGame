@@ -80,10 +80,16 @@ test.describe('with motion', () => {
     await waitStep(page, 'scene');
     const lines = DATA.phases[1].scenes[1].lines;
     for (let i = 0; i < lines.length; i++) {
-      await expect(page.locator('.dialogue')).toContainText(lines[i].text.slice(0, 1));
-      await page.waitForTimeout(300);
-      const layers = await opaqueLayers(page);
       const speaker = lines[i].speaker;
+      const want = speaker ? DATA.characters[speaker].portrait : null;
+      // Settle: the expected layer (or none) fully opaque and nothing mid-fade.
+      await expect.poll(async () => {
+        const ls = await opaqueLayers(page);
+        const settled = ls.every((l) => l.o > 0.99 || l.o < 0.01);
+        const op = ls.filter((l) => l.o > 0.99).map((l) => l.src);
+        return settled && (want ? op.length === 1 && op[0] === want : op.length === 0);
+      }, { timeout: 3000 }).toBe(true);
+      const layers = await opaqueLayers(page);
       const opaque = layers.filter((l) => l.o > 0.99);
       const clear = layers.filter((l) => l.o < 0.01);
       expect(opaque.length + clear.length, 'no layer mid-fade after the crossfade').toBe(layers.length);
@@ -146,4 +152,49 @@ test('reduced motion: 0 s transitions, instant text, last line and prompt both a
   await choose(page, 'Б');
   await expect(page.locator('.feedback-btn')).toBeFocused();
   await expect(page.locator('.sr-live')).toContainText(DATA.ui.feedbackHeadings.good);
+});
+
+test('held Space (global key path) advances exactly one line on release', async ({ page, gameUrl }) => {
+  await open(page, gameUrl);
+  await goToScene(page, 7); // D7 has three lines; reduced motion: instant text
+  await page.locator('#panel-title').focus();
+  await page.keyboard.down(' ');
+  for (let i = 0; i < 5; i++) await page.evaluate(() => document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', repeat: true, bubbles: true, cancelable: true })));
+  await page.waitForTimeout(400); // choices would be armed by now if they had been revealed
+  await page.keyboard.up(' ');
+  await page.waitForTimeout(300);
+  await expect(page.locator('.feedback')).toBeHidden();
+  await expect(page.locator('.choice[aria-current]')).toHaveCount(0);
+  const lines = DATA.phases[1].scenes[1].lines;
+  await expect(page.locator('.dialogue')).toHaveText(lines[1].text); // exactly one line advanced
+});
+
+test('step headings are announced on titled dialogue steps', async ({ page, gameUrl }) => {
+  await open(page, gameUrl);
+  await expect(page.locator('.sr-live')).toContainText(DATA.intro.company.title);
+  await goToScene(page, 5);
+  await revealChoices(page);
+  await choose(page, CORRECT[5]);
+  await page.locator('.feedback-btn').click();
+  await waitStep(page, 'transition');
+  await expect(page.locator('.sr-live')).toContainText(DATA.phases[0].title);
+  await expect(page.locator('.sr-live')).toContainText(DATA.phases[0].transition.text);
+});
+
+test('a tap on the final ending line does not restart; only the button does', async ({ page, gameUrl }) => {
+  await open(page, gameUrl);
+  await page.evaluate(() => localStorage.setItem('hrsim.save.v1', JSON.stringify({ v: 1, step: 18 })));
+  await page.reload();
+  await expect(page.locator('.stage')).not.toHaveClass(/is-booting/);
+  await primary(page).click();
+  await waitStep(page, 'offer');
+  await next(page);
+  await waitStep(page, 'ending');
+  await next(page);
+  await expect(page.locator('.dialogue')).toHaveText(DATA.ending.text);
+  await page.locator('.dialogue').click();
+  await page.waitForTimeout(300);
+  await expect(page.locator('.stage')).toHaveAttribute('data-step-type', 'ending');
+  await primary(page).click();
+  await waitStep(page, 'intro-company');
 });

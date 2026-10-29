@@ -282,6 +282,7 @@ button { font: inherit; color: inherit; }
   font-weight: 700;
 }
 .choice:disabled { cursor: default; opacity: 0.55; }
+.choices.is-arming .choice:disabled { opacity: 1; } /* brief input guard after reveal: no visual flash */
 .choice[aria-current="true"] { opacity: 1; border-color: var(--navy); background: #fff; box-shadow: inset 6px 0 0 var(--navy); }
 
 /* ---------- feedback ---------- */

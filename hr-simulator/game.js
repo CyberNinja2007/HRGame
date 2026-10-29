@@ -119,10 +119,25 @@
   // Announcements made in the same turn are merged so none is lost (e.g. last line + prompt under reduced motion).
   var pendingAnnouncements = [];
   var announceTimer = 0;
+  // While choices or the feedback button are arming, speech waits for the focus move: screen readers
+  // cancel ongoing speech on focus change, which would cut off the line just announced.
+  var announceHeld = false;
+  function holdAnnouncements() {
+    announceHeld = true;
+    window.clearTimeout(announceTimer);
+    announceTimer = 0;
+  }
+  function releaseAnnouncements() {
+    announceHeld = false;
+    if (!pendingAnnouncements.length || announceTimer) return;
+    var batch = pendingAnnouncements;
+    pendingAnnouncements = [];
+    announce(batch.join(' '));
+  }
   function announce(text) {
     if (!text) return;
     pendingAnnouncements.push(text);
-    if (announceTimer) return;
+    if (announceTimer || announceHeld) return;
     el.live.textContent = '';
     // Separate task so screen readers notice a change even for identical text.
     announceTimer = window.setTimeout(function () {
@@ -219,11 +234,12 @@
     var current = el.bg[activeBg];
     source.srcset = sources.small;
     img.src = sources.src;
-    activeBg = 1 - activeBg;
     activeBgId = id;
+    // The active index flips only when the swap happens, so a superseded swap reuses the same pending layer.
     whenReady(bgSwap, img, function () {
       next.classList.add('is-active');
       current.classList.remove('is-active');
+      activeBg = 1 - activeBg;
     });
   }
 
@@ -253,10 +269,10 @@
       el.speaker.forEach(function (n) { n.classList.remove('is-active'); });
       return;
     }
-    activeSpeakerLayer = 1 - activeSpeakerLayer;
     var swap = function () {
       next.classList.add('is-active');
       current.classList.remove('is-active');
+      activeSpeakerLayer = 1 - activeSpeakerLayer;
     };
     if (wide) {
       setSrc(next, c.portrait);
@@ -373,10 +389,15 @@
     });
     var token = state.navToken;
     window.clearTimeout(armTimer);
+    el.choices.classList.add('is-arming');
+    holdAnnouncements();
     armTimer = window.setTimeout(function () {
-      if (token !== state.navToken || state.phase !== 'choosing') return;
-      Array.prototype.forEach.call(buttons, function (b) { b.disabled = false; });
-      if (buttons[0]) buttons[0].focus({ preventScroll: false });
+      el.choices.classList.remove('is-arming');
+      if (token === state.navToken && state.phase === 'choosing') {
+        Array.prototype.forEach.call(buttons, function (b) { b.disabled = false; });
+        if (buttons[0]) buttons[0].focus({ preventScroll: false });
+      }
+      releaseAnnouncements();
     }, ARM_DELAY_MS);
   }
 
@@ -384,10 +405,13 @@
     el.feedbackBtn.disabled = true;
     var token = state.navToken;
     window.clearTimeout(armTimer);
+    holdAnnouncements();
     armTimer = window.setTimeout(function () {
-      if (token !== state.navToken || state.phase !== 'feedback') return;
-      el.feedbackBtn.disabled = false;
-      el.feedbackBtn.focus({ preventScroll: true });
+      if (token === state.navToken && state.phase === 'feedback') {
+        el.feedbackBtn.disabled = false;
+        el.feedbackBtn.focus({ preventScroll: true });
+      }
+      releaseAnnouncements();
     }, ARM_DELAY_MS);
   }
 
