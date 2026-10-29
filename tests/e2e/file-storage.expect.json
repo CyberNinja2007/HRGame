@@ -1,0 +1,5 @@
+{
+  "chromium": "persist",
+  "firefox": "persist",
+  "webkit": "persist"
+}

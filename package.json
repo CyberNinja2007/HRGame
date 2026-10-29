@@ -1,0 +1,23 @@
+{
+  "name": "hr-simulator-dev",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only tooling for the HR Simulator static game (hr-simulator/). Not shipped.",
+  "scripts": {
+    "serve": "node tests/serve.mjs",
+    "assets": "python3 tools/optimize_assets.py build",
+    "assets:check": "python3 tools/optimize_assets.py check",
+    "assets:glyphs": "python3 tools/optimize_assets.py glyphs hr-simulator/game-data.js hr-simulator/index.html",
+    "test:unit": "node --test tests/unit/",
+    "test:e2e": "playwright test -c tests/playwright.config.mjs",
+    "lighthouse": "node tests/lighthouse/run-lighthouse.mjs",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:e2e:native": "playwright test -c tests/playwright.config.mjs --project=chromium-http --project=chromium-file --project=firefox-http --project=firefox-file",
+    "test:e2e:webkit": "tests/run-in-container.sh --project=webkit-http --project=webkit-file"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
+    "lighthouse": "^13.6.0"
+  }
+}

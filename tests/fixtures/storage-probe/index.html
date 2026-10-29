@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>storage probe</title>
+<link rel="icon" href="data:,">
+</head>
+<body>
+<pre id="out">pending</pre>
+<script>
+  (function () {
+    var out = document.getElementById('out');
+    try {
+      var key = 'hrsim.probe';
+      var prev = window.localStorage.getItem(key);
+      if (location.hash === '#write') {
+        window.localStorage.setItem(key, 'ok');
+        out.textContent = 'written';
+      } else {
+        out.textContent = prev === 'ok' ? 'persist' : 'missing';
+      }
+    } catch (e) {
+      out.textContent = 'throws';
+    }
+  })();
+</script>
+</body>
+</html>
