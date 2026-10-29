@@ -18,9 +18,11 @@ async function common(page) {
 async function modeChecks(page, vp, { speaker }) {
   const wide = vp.width >= 900 && vp.height >= 600;
   const short = vp.height <= 500;
-  const opaqueCutouts = await page.evaluate(() =>
+  const countCutouts = () => page.evaluate(() =>
     Array.from(document.querySelectorAll('.speaker-layer')).filter((n) => getComputedStyle(n).display !== 'none' && n.classList.contains('is-active')).length,
   );
+  if (wide) await expect.poll(countCutouts).toBe(speaker ? 1 : 0);
+  const opaqueCutouts = await countCutouts();
   const avatarVisible = await page.locator('.speaker-row .avatar').isVisible();
   if (wide) {
     expect(opaqueCutouts, 'wide: one cut-out iff a speaker').toBe(speaker ? 1 : 0);
@@ -93,7 +95,7 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
       await shot(page, testInfo, vpName, '07-question');
       await choose(page, 'А');
       await common(page);
-      await expect(page.locator('.feedback')).toBeInViewport();
+      await expect(page.locator('#feedback-title')).toBeInViewport({ ratio: 1 });
       await shot(page, testInfo, vpName, '08-feedback-improve');
       await page.locator('.feedback-btn').click();
       await choose(page, CORRECT[1]);

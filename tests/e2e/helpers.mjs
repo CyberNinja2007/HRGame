@@ -47,6 +47,10 @@ export async function next(page) {
   await btn.click();
 }
 
+/** Characters of the current line not yet typed (non-retrying read). */
+export const restLength = (page) => page.evaluate(() => { const r = document.querySelector('.dialogue .rest'); return r ? r.textContent.length : 0; });
+export const choicesShown = (page) => page.evaluate(() => !document.querySelector('.choices').hidden);
+
 export const stepType = (page) => page.locator('.stage').getAttribute('data-step-type');
 
 export async function waitStep(page, type) {

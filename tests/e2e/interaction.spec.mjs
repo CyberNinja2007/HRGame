@@ -1,6 +1,6 @@
 // Interaction contract: typing completion, double activation, touch, Space, drag-scroll.
 import { test, expect } from './fixtures.mjs';
-import { open, bootDone, next, primary, waitStep, advanceTo, goToScene, revealChoices } from './helpers.mjs';
+import { open, bootDone, next, primary, waitStep, advanceTo, goToScene, revealChoices, restLength, choicesShown } from './helpers.mjs';
 
 test.skip(({ transport }) => transport !== 'http', 'interaction runs on the served build');
 test.use({ reducedMotion: 'no-preference' });
@@ -11,7 +11,7 @@ test('(a) «Далее» while typing completes the line without advancing; focu
   await open(page, gameUrl);
   await expect.poll(() => isTyping(page)).toBe(true);
   await primary(page).click();
-  await expect(page.locator('.dialogue .rest')).toHaveText('');
+  expect(await restLength(page)).toBe(0); // non-retrying: Intro A types for ~3 s on its own
   await expect(page.locator('.stage')).toHaveAttribute('data-step-type', 'intro-company');
   await expect(primary(page)).toBeFocused();
   await primary(page).click();
@@ -61,8 +61,8 @@ test.describe('touch', () => {
     await expect.poll(() => isTyping(page)).toBe(true);
     const first = await page.locator('.dialogue').textContent();
     await page.locator('.dialogue').tap();
-    await expect(page.locator('.dialogue .rest')).toHaveText('');
-    await expect(page.locator('.choices')).toBeHidden();
+    expect(await restLength(page)).toBe(0);
+    expect(await choicesShown(page)).toBe(false);
     expect(await page.locator('.dialogue').textContent()).toBe(first);
     // advance to the last line
     for (let i = 0; i < 10 && !(await page.locator('.choices').isVisible()); i++) {
@@ -70,11 +70,11 @@ test.describe('touch', () => {
       await expect.poll(() => isTyping(page)).toBe(true);
       const before = await page.locator('.dialogue').textContent();
       await page.locator('.dialogue').tap();
-      await expect(page.locator('.dialogue .rest')).toHaveText('');
+      expect(await restLength(page)).toBe(0);
       expect(await page.locator('.dialogue').textContent()).toBe(before);
     }
+    expect(await choicesShown(page)).toBe(true);
     await expect(page.locator('#prompt')).toBeVisible();
-    await expect(page.locator('.choices')).toBeVisible();
     await expect(page.locator('.feedback')).toBeHidden();
     await expect(page.locator('.stage')).toHaveAttribute('data-step-type', 'scene');
   });

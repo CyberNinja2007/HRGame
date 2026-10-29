@@ -7,6 +7,8 @@
   var SAVE_KEY = 'hrsim.save.v1';
   var CHARS_PER_SECOND = 48;
   var PRELOAD_RACE_MS = 300;
+  var ARM_DELAY_MS = 250; // choices/feedback ignore input this long after appearing (stray double click or tap)
+  var SWAP_READY_MS = 400; // longest wait for a new layer image before the crossfade starts anyway
 
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   var wideQuery = window.matchMedia('(min-width: 900px) and (min-height: 600px)');
@@ -114,10 +116,35 @@
     return smallBgQuery.matches ? s.small : s.src;
   }
 
+  // Announcements made in the same turn are merged so none is lost (e.g. last line + prompt under reduced motion).
+  var pendingAnnouncements = [];
+  var announceTimer = 0;
   function announce(text) {
+    if (!text) return;
+    pendingAnnouncements.push(text);
+    if (announceTimer) return;
     el.live.textContent = '';
     // Separate task so screen readers notice a change even for identical text.
-    window.setTimeout(function () { el.live.textContent = text; }, 30);
+    announceTimer = window.setTimeout(function () {
+      el.live.textContent = pendingAnnouncements.join(' ');
+      pendingAnnouncements = [];
+      announceTimer = 0;
+    }, 30);
+  }
+
+  // Runs fn once img has a decoded frame (or after SWAP_READY_MS), unless a newer swap on the same group started.
+  function whenReady(group, img, fn) {
+    var token = ++group.token;
+    var done = false;
+    var run = function () {
+      if (done || token !== group.token) return;
+      done = true;
+      fn();
+    };
+    if (img.complete && img.naturalWidth > 0) { run(); return; }
+    window.setTimeout(run, SWAP_READY_MS);
+    img.addEventListener('load', run, { once: true });
+    img.addEventListener('error', run, { once: true });
   }
 
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
@@ -179,6 +206,8 @@
   /* ---------------- background & speaker layers ---------------- */
 
   var activeBg = 0;
+  var bgSwap = { token: 0 };
+  var speakerSwap = { token: 0 };
   var activeBgId = 'company';
 
   function showBackground(id) {
@@ -187,43 +216,66 @@
     var sources = bgSources(id);
     var source = next.querySelector('source');
     var img = next.querySelector('img');
+    var current = el.bg[activeBg];
     source.srcset = sources.small;
     img.src = sources.src;
-    next.classList.add('is-active');
-    el.bg[activeBg].classList.remove('is-active');
     activeBg = 1 - activeBg;
     activeBgId = id;
+    whenReady(bgSwap, img, function () {
+      next.classList.add('is-active');
+      current.classList.remove('is-active');
+    });
   }
 
   var activeSpeakerLayer = 0;
   var activeSpeaker = '';
 
+  function setSrc(img, url) {
+    if (img.getAttribute('src') !== url) img.src = url;
+  }
+
+  // Only the variant the current layout displays gets a src (cut-out in wide mode, avatar otherwise),
+  // so phones never download portraits and no request is started and then cancelled.
   function showSpeaker(id) {
     id = id || '';
     stage.setAttribute('data-speaker', id);
     var c = character(id);
-    if (c) {
-      el.speakerRow.hidden = false;
-      el.avatar.src = c.avatar;
-      el.speakerName.textContent = c.name;
-    } else {
-      el.speakerRow.hidden = true;
-      el.avatar.removeAttribute('src');
-      el.speakerName.textContent = '';
-    }
+    var wide = wideQuery.matches;
+    el.speakerRow.hidden = !c;
+    el.speakerName.textContent = c ? c.name : '';
+    if (c && !wide) setSrc(el.avatar, c.avatar);
     if (id === activeSpeaker) return;
+    activeSpeaker = id;
     var current = el.speaker[activeSpeakerLayer];
     var next = el.speaker[1 - activeSpeakerLayer];
-    if (c) {
-      next.src = c.portrait;
+    if (!c) {
+      speakerSwap.token++;
+      el.speaker.forEach(function (n) { n.classList.remove('is-active'); });
+      return;
+    }
+    activeSpeakerLayer = 1 - activeSpeakerLayer;
+    var swap = function () {
       next.classList.add('is-active');
       current.classList.remove('is-active');
-      activeSpeakerLayer = 1 - activeSpeakerLayer;
+    };
+    if (wide) {
+      setSrc(next, c.portrait);
+      whenReady(speakerSwap, next, swap);
     } else {
-      current.classList.remove('is-active');
+      speakerSwap.token++;
+      swap();
     }
-    activeSpeaker = id;
   }
+
+  // Rotation or resize across the wide breakpoint: give the newly displayed variant its image.
+  function onLayoutModeChange() {
+    var c = character(activeSpeaker);
+    if (!c) return;
+    if (wideQuery.matches) setSrc(el.speaker[activeSpeakerLayer], c.portrait);
+    else setSrc(el.avatar, c.avatar);
+  }
+  if (wideQuery.addEventListener) wideQuery.addEventListener('change', onLayoutModeChange);
+  else if (wideQuery.addListener) wideQuery.addListener(onLayoutModeChange);
 
   /* ---------------- typewriter ---------------- */
 
@@ -252,7 +304,7 @@
     typing.shown = 0;
     typing.start = performance.now();
     var tick = function (now) {
-      var n = Math.min(typing.text.length, Math.floor((now - typing.start) * CHARS_PER_SECOND / 1000));
+      var n = Math.max(0, Math.min(typing.text.length, Math.floor((now - typing.start) * CHARS_PER_SECOND / 1000)));
       if (n !== typing.shown) {
         typing.shown = n;
         typing.shownNode.textContent = typing.text.slice(0, n);
@@ -307,8 +359,36 @@
     });
     el.choices.hidden = false;
     announce(scene.prompt);
-    var first = el.choices.querySelector('.choice');
-    if (first) first.focus({ preventScroll: false });
+    armChoices();
+  }
+
+  // Choices start disabled and become usable after ARM_DELAY_MS, so the second click of a double click
+  // (or a second tap) on «Далее» / «Попробовать ещё раз» cannot land on an answer.
+  var armTimer = 0;
+  function armChoices() {
+    var buttons = el.choices.querySelectorAll('.choice');
+    Array.prototype.forEach.call(buttons, function (b) {
+      b.disabled = true;
+      b.removeAttribute('aria-current');
+    });
+    var token = state.navToken;
+    window.clearTimeout(armTimer);
+    armTimer = window.setTimeout(function () {
+      if (token !== state.navToken || state.phase !== 'choosing') return;
+      Array.prototype.forEach.call(buttons, function (b) { b.disabled = false; });
+      if (buttons[0]) buttons[0].focus({ preventScroll: false });
+    }, ARM_DELAY_MS);
+  }
+
+  function armFeedbackButton() {
+    el.feedbackBtn.disabled = true;
+    var token = state.navToken;
+    window.clearTimeout(armTimer);
+    armTimer = window.setTimeout(function () {
+      if (token !== state.navToken || state.phase !== 'feedback') return;
+      el.feedbackBtn.disabled = false;
+      el.feedbackBtn.focus({ preventScroll: true });
+    }, ARM_DELAY_MS);
   }
 
   function selectChoice(choice, button) {
@@ -345,7 +425,7 @@
     if (firstSpeaker) showSpeaker(firstSpeaker);
     announce(heading + '. ' + spoken.join(' ') + ' ' + choice.feedback);
     el.feedback.scrollIntoView({ block: 'start', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
-    el.feedbackBtn.focus({ preventScroll: true });
+    armFeedbackButton();
   }
 
   function onFeedbackAction() {
@@ -357,14 +437,9 @@
     el.feedback.hidden = true;
     var s = steps[state.step];
     showSpeaker(s.lines[s.lines.length - 1].speaker);
-    Array.prototype.forEach.call(el.choices.querySelectorAll('.choice'), function (b) {
-      b.disabled = false;
-      b.removeAttribute('aria-current');
-    });
     state.phase = 'choosing';
     el.prompt.scrollIntoView({ block: 'nearest' });
-    var first = el.choices.querySelector('.choice');
-    if (first) first.focus();
+    armChoices();
   }
 
   /* ---------------- step renderers ---------------- */
@@ -479,6 +554,7 @@
       return;
     }
 
+    if (s.title) announce(s.title);
     renderLine(s.lines[0], opts.instant);
     if (index === 0 && state.resumeStep != null) {
       // Resume screen: «Продолжить» resumes, «Начать заново» clears the save.
@@ -531,7 +607,7 @@
 
   function focusForStep() {
     var s = steps[state.step];
-    if (state.phase === 'choosing') return; // revealChoices already focused the first choice
+    if (state.phase === 'choosing') return; // armChoices focuses the first choice once it is usable
     if (!el.primary.hidden) {
       el.primary.focus({ preventScroll: true });
     } else if (s) {
@@ -556,7 +632,6 @@
     var s = steps[state.step];
     if (state.phase === 'typing') {
       finishTyping();
-      if (state.phase === 'choosing') return; // revealChoices moved focus
       return;
     }
     if (state.phase !== 'reading') return;
@@ -611,12 +686,22 @@
   });
   el.feedbackBtn.addEventListener('click', onFeedbackAction);
 
+  // A held Enter/Space must not auto-repeat onto the next control that receives focus.
+  document.addEventListener('keydown', function (e) {
+    if (e.repeat && (e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('.choice, .feedback-btn, #primary')) {
+      e.preventDefault();
+    }
+  }, true);
+
   panel.addEventListener('click', function (e) {
     if (e.target.closest('button, a')) return;
     if (state.phase !== 'typing' && state.phase !== 'reading') return;
     var sel = window.getSelection && window.getSelection();
     if (sel && !sel.isCollapsed) return;
     if (state.phase === 'reading' && el.primary.hidden) return;
+    var s = steps[state.step];
+    // Restarting is destructive: on the final ending line only the button restarts.
+    if (state.phase === 'reading' && s.type === 'ending' && isLastLine()) return;
     primaryIntent();
   });
 
@@ -632,7 +717,7 @@
       if (!e.repeat) primaryIntent();
     } else if (e.key === ' ' || e.key === 'Spacebar') {
       e.preventDefault();
-      spaceArmed = !e.repeat;
+      if (!e.repeat) spaceArmed = true;
     }
   });
   document.addEventListener('keyup', function (e) {

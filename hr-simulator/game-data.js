@@ -15,7 +15,6 @@ window.GAME_DATA = {
       improve: 'Что можно улучшить',
       risky: 'Почему это рискованно'
     },
-    choiceGroupLabel: 'Варианты ответа',
     castTitle: 'Познакомься с командой',
     offerTitle: 'Предложение о работе'
   },
