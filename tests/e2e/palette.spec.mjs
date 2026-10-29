@@ -1,4 +1,4 @@
-// AC32: the computed colours of the key UI elements come from the SPEC palette (read from SPEC.md, not duplicated).
+// AC16: the computed colours of the key UI elements come from the SPEC palette (read from SPEC.md, not duplicated).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -1,4 +1,4 @@
-// AC16: every rendered screen is Russian-only, free of scoring vocabulary and of fractions other than 5/2 and 24/7.
+// AC32: every rendered screen is Russian-only, free of scoring vocabulary and of fractions other than 5/2 and 24/7.
 // Walks the whole game, dumps the rendered text per screen into tests/artifacts/content-dump.md.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -61,7 +61,7 @@ function dumpMarkdown(screens) {
   return out.join('\n');
 }
 
-test('every rendered screen is Russian-only, has no scoring words and no stray fractions (AC16)', async ({ page, gameUrl }, testInfo) => {
+test('every rendered screen is Russian-only, has no scoring words and no stray fractions (AC32)', async ({ page, gameUrl }, testInfo) => {
   test.setTimeout(180_000);
   const screens = [];
   const snap = async (heading) => { screens.push(await snapshot(page, heading)); };
