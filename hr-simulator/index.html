@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>HR Simulator: Срочная вакансия</title>
+  <meta name="description" content="Короткая обучающая визуальная новелла о подборе IT-специалиста.">
+  <meta name="theme-color" content="#263C70">
+  <link rel="icon" href="assets/ui/favicon.png">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="game-data.js"></script>
+  <script defer src="game.js"></script>
+</head>
+<body>
+  <div class="stage is-booting" data-step-type="intro-company" data-panel="dialogue" data-speaker="">
+    <div class="bg-layer is-active" data-layer="0">
+      <picture>
+        <source media="(max-width: 899px)" srcset="assets/backgrounds/company-836.webp">
+        <img src="assets/backgrounds/company.webp" alt="" width="1672" height="941" fetchpriority="high" decoding="async">
+      </picture>
+    </div>
+    <div class="bg-layer" data-layer="1">
+      <picture>
+        <source media="(max-width: 899px)">
+        <img alt="" width="1672" height="941" decoding="async">
+      </picture>
+    </div>
+    <img class="speaker-layer" data-layer="0" alt="" width="543" height="724" decoding="async">
+    <img class="speaker-layer" data-layer="1" alt="" width="543" height="724" decoding="async">
+
+    <header class="topbar">
+      <p class="topbar-info"><span class="topbar-phase"></span><span class="topbar-date"></span></p>
+      <button type="button" class="fullscreen-btn" hidden aria-pressed="false">Во весь экран</button>
+    </header>
+
+    <main class="panel" aria-labelledby="panel-title">
+      <div class="speaker-row" hidden>
+        <img class="avatar" alt="" width="192" height="192" decoding="async">
+        <span class="speaker-name"></span>
+      </div>
+      <h2 id="panel-title" tabindex="-1"></h2>
+      <p class="subtitle" hidden></p>
+      <p class="dialogue" aria-hidden="true"></p>
+      <div class="content"></div>
+      <p class="prompt" id="prompt" hidden></p>
+      <div class="choices" role="group" aria-labelledby="prompt" hidden></div>
+      <section class="feedback" hidden aria-labelledby="feedback-title">
+        <h3 id="feedback-title"></h3>
+        <div class="reaction"></div>
+        <p class="explanation"></p>
+        <div class="feedback-actions"><button type="button" class="btn feedback-btn"></button></div>
+      </section>
+      <div class="actions">
+        <button type="button" class="btn secondary" hidden></button>
+        <button type="button" class="btn primary" id="primary" hidden>Далее</button>
+      </div>
+      <div class="sr-live visually-hidden" aria-live="polite"></div>
+    </main>
+    <noscript><p class="noscript">Для игры нужен включённый JavaScript.</p></noscript>
+  </div>
+</body>
+</html>
