@@ -67,10 +67,18 @@ UNICODE_RANGES = [
     (0x2192, 0x2192),
 ]
 
+# Pixelify Sans ships glyphs whose shapes are identical to these Cyrillic capitals but has no cmap entry
+# for them (upstream gap: О and П render in the fallback font otherwise). Map them to the existing glyphs.
+CMAP_ALIASES = {
+    0x041E: "O",   # CYRILLIC CAPITAL LETTER O  -> Latin O
+    0x041F: "Pi",  # CYRILLIC CAPITAL LETTER PE -> Greek Pi
+}
+
 # Code points the font genuinely lacks; rendered by the CSS fallback stack.
 GLYPH_ALLOWLIST = {
     0x20BD: "RUBLE SIGN: absent from Pixelify Sans; rendered by fallback fonts",
     0x202F: "NARROW NO-BREAK SPACE: absent from Pixelify Sans; whitespace via fallback",
+    0x2192: "RIGHTWARDS ARROW: absent from Pixelify Sans; used once in a verbatim source option",
 }
 
 
@@ -144,6 +152,12 @@ def build() -> None:
     bgfav.save(OUT / "ui" / "favicon.png", optimize=True)
 
     font = TTFont(FONT_SRC)
+    glyph_order = set(font.getGlyphOrder())
+    for table in font["cmap"].tables:
+        if table.isUnicode():
+            for cp, glyph in CMAP_ALIASES.items():
+                assert glyph in glyph_order, glyph
+                table.cmap.setdefault(cp, glyph)
     opts = subset.Options()
     opts.flavor = "woff2"
     opts.layout_features = ["*"]
@@ -197,7 +211,7 @@ def check() -> int:
     if FONT_OUT.exists():
         need(FONT_OUT.stat().st_size <= BUDGET["font"], f"font {FONT_OUT.stat().st_size} > {BUDGET['font']}")
         cmap = TTFont(FONT_OUT).getBestCmap()
-        need(all(ord(c) in cmap for c in "АБВабвЁёЙйЖжЯя«»—–…№"), "font subset lacks required Cyrillic/punctuation")
+        need(all(ord(c) in cmap for c in "АБВОПабвопЁёЙйЖжЯя«»—–…№"), "font subset lacks required Cyrillic/punctuation")
     need(OFL_OUT.exists(), "OFL.txt missing next to font")
     stray = [p.relative_to(ROOT) for p in OUT.rglob("*") if p.suffix.lower() in {".ttf", ".otf"}]
     need(not stray, f"raw font files shipped: {stray}")
