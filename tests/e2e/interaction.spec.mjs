@@ -117,27 +117,40 @@ test.describe('reduced motion', () => {
   test.use({ reducedMotion: 'reduce' });
 
   test('(f) a human-paced double click (150 ms apart) opens exactly one new screen', async ({ page, gameUrl }) => {
-    // Learn where «Далее» sits on Intro D, then replay from the start: both clicks are raw mouse clicks
-    // 150 ms apart with no harness round trips between them (slow engines would otherwise exceed the guard).
+    // Learn where «Далее» sits on Intro D, then replay from Intro C: both clicks are raw mouse clicks 150 ms apart.
+    // The two spots differ, so the browser counts each as a single click: only the 250 ms arming guard can stop
+    // the second one. Under heavy load the harness gap can stretch past that window; such an attempt does not
+    // exercise the guard and is repeated (the measured gap is asserted, so the test never passes vacuously).
     await open(page, gameUrl);
     await advanceTo(page, 'intro-lead');
     const lead = await primary(page).boundingBox();
-    await open(page, gameUrl);
-    await advanceTo(page, 'intro-cast');
-    await page.waitForLoadState('networkidle'); // Intro D images cached: its commit is immediate
-    await primary(page).scrollIntoViewIfNeeded();
-    await expect(primary(page)).not.toHaveAttribute('aria-disabled', 'true'); // Intro C's own guard has expired
-    const cast = await primary(page).boundingBox();
-    await page.evaluate(() => {
-      window.__clicks = [];
-      document.addEventListener('click', (e) => window.__clicks.push(e.target.id), true);
-    });
-    await page.mouse.click(cast.x + cast.width / 2, cast.y + cast.height / 2); // first click of the pair
-    await page.waitForTimeout(150);
-    await page.mouse.click(lead.x + lead.width / 2, lead.y + lead.height / 2);
-    await page.waitForTimeout(400);
+    let attempt = null;
+    for (let i = 0; i < 3 && !attempt; i++) {
+      await open(page, gameUrl);
+      await advanceTo(page, 'intro-cast');
+      await page.waitForLoadState('networkidle'); // Intro D images cached: its commit is immediate
+      await primary(page).scrollIntoViewIfNeeded();
+      await expect(primary(page)).not.toHaveAttribute('aria-disabled', 'true'); // Intro C's own guard has expired
+      const cast = await primary(page).boundingBox();
+      await page.evaluate(() => {
+        window.__clicks = [];
+        window.__leadAt = 0;
+        document.addEventListener('click', (e) => window.__clicks.push([e.target.id, e.timeStamp, e.detail]), true);
+        new MutationObserver(() => {
+          if (!window.__leadAt && document.querySelector('.stage').dataset.stepType === 'intro-lead') window.__leadAt = performance.now();
+        }).observe(document.querySelector('.stage'), { attributes: true, attributeFilter: ['data-step-type'] });
+      });
+      await page.mouse.click(cast.x + cast.width / 2, cast.y + cast.height / 2); // first click of the pair
+      await page.waitForTimeout(150);
+      await page.mouse.click(lead.x + lead.width / 2, lead.y + lead.height / 2);
+      await page.waitForTimeout(400);
+      const r = await page.evaluate(() => ({ clicks: window.__clicks, leadAt: window.__leadAt }));
+      expect(r.clicks.map(([id]) => id), 'both clicks reached «Далее»').toEqual(['primary', 'primary']);
+      expect(r.leadAt, 'Intro D opened on the first click').toBeGreaterThan(0);
+      if (r.clicks[1][1] - r.leadAt < 230) attempt = r;
+    }
+    expect(attempt, 'a second click landed inside the 250 ms window in one of 3 attempts').not.toBeNull();
     await expect(page.locator('.stage')).toHaveAttribute('data-step-type', 'intro-lead');
-    expect(await page.evaluate(() => window.__clicks), 'both clicks reached «Далее»').toEqual(['primary', 'primary']);
     // Instant text: without the guard the second click would show line 2 (Maria's thought).
     await expect(page.locator('.dialogue')).toHaveText(/^В архиве/);
     await expect(primary(page)).toBeFocused();
