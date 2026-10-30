@@ -64,7 +64,10 @@ test('panel, title, buttons and frame use the SPEC colours (intro)', async ({ pa
   expect((await page.locator('meta[name="theme-color"]').getAttribute('content')).toUpperCase()).toBe(PALETTE.navy);
 });
 
-test('spoken dialogue text is ink; speaker name is navy', async ({ page, gameUrl }) => {
+// Per-character name accents (styles.css): each speaker is recognisable by colour.
+const WHO = { maria: '#A3306E', gennady: '#1E7040', pavel: '#1D5BB0', elena: '#B23A1E', oleg: '#8A5A00', darya: '#6A3FB5' };
+
+test('spoken dialogue text is ink; speaker name has the speaker colour', async ({ page, gameUrl }) => {
   await open(page, gameUrl);
   await advanceTo(page, 'intro-lead');
   // Line 0 is narration (own tint); line 1 is Maria speaking.
@@ -72,7 +75,25 @@ test('spoken dialogue text is ink; speaker name is navy', async ({ page, gameUrl
   await expect(page.locator('.dialogue')).toHaveText(DATA.intro.lead.lines[1].text);
   await expect(page.locator('.speaker-row')).toBeVisible();
   expect((await style(page, '.dialogue', ['color'])).color).toBe(c('ink'));
-  expect((await style(page, '.speaker-name', ['color'])).color).toBe(c('navy'));
+  expect((await style(page, '.speaker-name', ['color'])).color).toBe(rgb(WHO.maria));
+});
+
+test('cast names and feedback names carry six distinct speaker colours', async ({ page, gameUrl }) => {
+  await open(page, gameUrl);
+  await advanceTo(page, 'intro-cast');
+  const cast = await page.locator('.cast figure').evaluateAll((figs) =>
+    figs.map((f) => [f.getAttribute('data-speaker'), getComputedStyle(f.querySelector('h3')).color]),
+  );
+  expect(Object.fromEntries(cast)).toEqual(Object.fromEntries(Object.entries(WHO).map(([id, hex]) => [id, rgb(hex)])));
+  expect(new Set(cast.map(([, col]) => col)).size).toBe(6);
+  expect(cast.map(([, col]) => col)).not.toContain(c('navy'));
+
+  // D1 reaction: Gennady's name in the feedback matches his panel name colour.
+  await goToScene(page, 1);
+  expect((await style(page, '.speaker-name', ['color'])).color).toBe(rgb(WHO.gennady));
+  await revealChoices(page);
+  await choose(page, 'А');
+  expect((await style(page, '.reaction b', ['color'])).color).toBe(rgb(WHO.gennady));
 });
 
 test('choices and feedback: frame-blue choice border, caution/success accents, navy feedback border', async ({ page, gameUrl }) => {

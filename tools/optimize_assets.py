@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Dev-only asset pipeline for hr-simulator/.
 
-Reads originals from HR_Simulator_Static_HTML_Starter_Pack/assets (never modified) and writes
-optimized derivatives into hr-simulator/assets.
+Reads originals from HR_Simulator_Static_HTML_Starter_Pack/assets (never modified) and the vendored
+font in tools/fonts/NotoSans, and writes optimized derivatives into hr-simulator/assets.
 
   build            regenerate all derived assets + review sheets (tests/artifacts/asset-review)
   check            verify dimensions, alpha, byte budgets, font + licence presence
@@ -51,39 +51,34 @@ CROPS = {
     "darya": (200, 20, 700),
 }
 
-FONT_SRC = SRC / "Pixelify_Sans" / "PixelifySans-VariableFont_wght.ttf"
-FONT_OUT = OUT / "fonts" / "PixelifySans-subset.woff2"
-OFL_SRC = SRC / "Pixelify_Sans" / "OFL.txt"
+# Pixelify Sans from the starter pack proved hard to read in Cyrillic; the game ships Noto Sans (OFL 1.1),
+# vendored from the noto-fonts 2.015 release.
+FONT_DIR = ROOT / "tools" / "fonts" / "NotoSans"
+FONTS = {
+    FONT_DIR / "NotoSans-Regular.ttf": OUT / "fonts" / "NotoSans-Regular-subset.woff2",
+    FONT_DIR / "NotoSans-Bold.ttf": OUT / "fonts" / "NotoSans-Bold-subset.woff2",
+}
+OFL_SRC = FONT_DIR / "OFL.txt"
 OFL_OUT = OUT / "fonts" / "OFL.txt"
 
+# Only what the Russian story can show: ASCII, basic Cyrillic and the punctuation it uses.
+# `glyphs` fails if new text needs anything else.
 UNICODE_RANGES = [
     (0x0020, 0x007E),
-    (0x00A0, 0x00FF),
+    (0x00A0, 0x00A0),
+    (0x00AB, 0x00AB),
+    (0x00B7, 0x00B7),
+    (0x00BB, 0x00BB),
     (0x0400, 0x045F),
     (0x2010, 0x2027),
-    (0x2030, 0x203A),
+    (0x202F, 0x202F),
+    (0x20BD, 0x20BD),
     (0x2116, 0x2116),
-    (0x2192, 0x2192),
 ]
 
-# Pixelify Sans ships glyphs whose shapes are identical to these Cyrillic capitals but has no cmap entry
-# for them (upstream gap: О and П render in the fallback font otherwise). Map them to the existing glyphs.
-CMAP_ALIASES = {
-    0x041E: "O",   # CYRILLIC CAPITAL LETTER O  -> Latin O
-    0x041F: "Pi",  # CYRILLIC CAPITAL LETTER PE -> Greek Pi
-}
-
-# Upstream cmap swap: U+041A (К) points at the accented Ќ glyph and U+040C at the plain one.
-# Force К to the identical plain Latin K glyph (overrides, unlike the aliases above).
-CMAP_OVERRIDES = {
-    0x041A: "K",   # CYRILLIC CAPITAL LETTER KA -> Latin K
-}
-
-# Code points the font genuinely lacks; rendered by the CSS fallback stack.
+# Code points the font genuinely lacks; rendered by the system fallbacks at the end of the CSS stack.
 GLYPH_ALLOWLIST = {
-    0x20BD: "RUBLE SIGN: absent from Pixelify Sans; rendered by fallback fonts",
-    0x202F: "NARROW NO-BREAK SPACE: absent from Pixelify Sans; whitespace via fallback",
-    0x2192: "RIGHTWARDS ARROW: absent from Pixelify Sans; used once in a verbatim source option",
+    0x2192: "RIGHTWARDS ARROW: absent from Noto Sans (lives in Noto Sans Symbols); used once in a verbatim source option",
 }
 
 
@@ -102,6 +97,18 @@ def fit_lossy(img: Image.Image, budget: int, start_q: int, min_q: int, **opts) -
         if q <= min_q:
             raise SystemExit(f"cannot fit budget {budget} at q>={min_q} (got {len(data)})")
         q -= 2
+
+
+def save_subset(font: TTFont, ranges: list[tuple[int, int]], out: Path) -> None:
+    opts = subset.Options()
+    opts.flavor = "woff2"
+    opts.notdef_outline = True
+    opts.hinting = False  # browsers rasterise unhinted outlines well; hints were over a third of the file
+    sub = subset.Subsetter(opts)
+    sub.populate(unicodes=[c for a, b in ranges for c in range(a, b + 1)])
+    sub.subset(font)
+    font.flavor = "woff2"
+    font.save(out)
 
 
 def build() -> None:
@@ -156,28 +163,10 @@ def build() -> None:
     bgfav.alpha_composite(fav)
     bgfav.save(OUT / "ui" / "favicon.png", optimize=True)
 
-    font = TTFont(FONT_SRC)
-    glyph_order = set(font.getGlyphOrder())
-    for table in font["cmap"].tables:
-        if table.isUnicode():
-            for cp, glyph in CMAP_ALIASES.items():
-                assert glyph in glyph_order, glyph
-                table.cmap.setdefault(cp, glyph)
-            for cp, glyph in CMAP_OVERRIDES.items():
-                assert glyph in glyph_order, glyph
-                table.cmap[cp] = glyph
-    opts = subset.Options()
-    opts.flavor = "woff2"
-    opts.layout_features = ["*"]
-    opts.name_IDs = ["*"]
-    opts.notdef_outline = True
-    sub = subset.Subsetter(opts)
-    sub.populate(unicodes=[c for a, b in UNICODE_RANGES for c in range(a, b + 1)])
-    sub.subset(font)
-    font.flavor = "woff2"
-    font.save(FONT_OUT)
+    for src, out in FONTS.items():
+        save_subset(TTFont(src), UNICODE_RANGES, out)
+        metrics[f"font/{out.name}"] = {"bytes": out.stat().st_size}
     shutil.copyfile(OFL_SRC, OFL_OUT)
-    metrics["font"] = {"bytes": FONT_OUT.stat().st_size}
 
     (REVIEW / "metrics.json").write_text(json.dumps(metrics, indent=2))
     print(json.dumps(metrics, indent=2))
@@ -215,13 +204,15 @@ def check() -> int:
     fav = img(OUT / "ui" / "favicon.png")
     if fav:
         need(fav.size == (32, 32), "favicon not 32x32")
-    need(FONT_OUT.exists() and FONT_OUT.read_bytes()[:4] == b"wOF2", "font subset missing or not woff2")
-    if FONT_OUT.exists():
-        need(FONT_OUT.stat().st_size <= BUDGET["font"], f"font {FONT_OUT.stat().st_size} > {BUDGET['font']}")
-        cmap = TTFont(FONT_OUT).getBestCmap()
-        need(all(ord(c) in cmap for c in "АБВОПабвопЁёЙйЖжЯя«»—–…№"), "font subset lacks required Cyrillic/punctuation")
-        need(all(cmap.get(cp) == cmap.get(ord(g)) for cp, g in ((0x041A, "K"), (0x041E, "O"))), "font subset: К/О must use the plain Latin K/O glyphs (upstream cmap swap)")
-    need(OFL_OUT.exists(), "OFL.txt missing next to font")
+    for out in FONTS.values():
+        need(out.exists() and out.read_bytes()[:4] == b"wOF2", f"{out.name} missing or not woff2")
+        if out.exists():
+            need(out.stat().st_size <= BUDGET["font"], f"{out.name} {out.stat().st_size} > {BUDGET['font']}")
+            cmap = TTFont(out).getBestCmap()
+            need(all(ord(c) in cmap for c in "АБВКОПабвкопЁёЙйЖжЯя«»—–…№₽\u202f"), f"{out.name} lacks required Cyrillic/punctuation")
+    need(OFL_OUT.exists(), "OFL.txt missing next to the fonts")
+    shipped = {p.name for p in (OUT / "fonts").iterdir()}
+    need(shipped == {"OFL.txt"} | {p.name for p in FONTS.values()}, f"unexpected files in assets/fonts: {sorted(shipped)}")
     stray = [p.relative_to(ROOT) for p in OUT.rglob("*") if p.suffix.lower() in {".ttf", ".otf"}]
     need(not stray, f"raw font files shipped: {stray}")
 
@@ -232,7 +223,7 @@ def check() -> int:
 
 
 def glyphs(files: list[str]) -> int:
-    cmap = TTFont(FONT_OUT).getBestCmap()
+    cmap = TTFont(next(iter(FONTS.values()))).getBestCmap()
     used: set[int] = set()
     for f in files:
         text = (ROOT / f).read_text(encoding="utf-8")
@@ -242,8 +233,7 @@ def glyphs(files: list[str]) -> int:
     bad = [c for c in missing if c not in GLYPH_ALLOWLIST]
     for c in missing:
         tag = "allowed" if c in GLYPH_ALLOWLIST else "MISSING"
-        reason = GLYPH_ALLOWLIST.get(c, "")
-        print(f"{tag} U+{c:04X} {chr(c)!r} {reason}")
+        print(f"{tag} U+{c:04X} {chr(c)!r} {GLYPH_ALLOWLIST.get(c, '')}")
     print("glyphs:", "OK" if not bad else f"{len(bad)} unsupported code point(s)")
     return 1 if bad else 0
 

@@ -5,7 +5,7 @@
 ## Структура
 
 - `hr-simulator/` — корень публикации: `index.html`, `styles.css`, `game.js`, `game-data.js`, `assets/` (изображения WebP, сокращённый шрифт и `OFL.txt`) и README для игроков. Только эта папка попадает на хостинг.
-- `tools/` — подготовка ресурсов на Python (`optimize_assets.py`): оптимизация изображений, сокращение шрифта до нужных знаков, проверка. Зависимости: `tools/requirements.txt` (`pip install -r tools/requirements.txt`).
+- `tools/` — подготовка ресурсов на Python (`optimize_assets.py`): оптимизация изображений, сокращение шрифта до нужных знаков, проверка. Исходные файлы шрифта Noto Sans с лицензией лежат в `tools/fonts/NotoSans/`. Зависимости: `tools/requirements.txt` (`pip install -r tools/requirements.txt`).
 - `tests/` — модульные тесты (`tests/unit/`), сквозные тесты Playwright (`tests/e2e/`), конфигурация Playwright, статический сервер `tests/serve.mjs`, запуск Lighthouse (`tests/lighthouse/`) и `tests/run-in-container.sh`.
 - `HR_Simulator_Static_HTML_Starter_Pack/` — исходное ТЗ и сюжетный материал; тесты сверяют с ними тексты игры.
 - `package.json` содержит только `devDependencies` (Playwright, axe, Lighthouse); в игру они не попадают.

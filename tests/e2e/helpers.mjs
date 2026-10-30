@@ -143,9 +143,10 @@ export async function assertVisibleImagesLoaded(page) {
 export async function assertFontLoaded(page) {
   const ok = await page.evaluate(async () => {
     await document.fonts.ready;
-    return Array.from(document.fonts).some((f) => f.family.replace(/"/g, '') === 'Pixelify Sans' && f.status === 'loaded');
+    const loaded = (weight) => Array.from(document.fonts).some((f) => f.family.replace(/"/g, '') === 'Noto Sans' && f.weight === weight && f.status === 'loaded');
+    return { regular: loaded('400'), bold: loaded('700') };
   });
-  expect(ok, 'Pixelify Sans is loaded').toBe(true);
+  expect(ok, 'Noto Sans regular and bold are loaded').toEqual({ regular: true, bold: true });
 }
 
 /** Panel scrollable (if needed) and its last visible action reachable. */

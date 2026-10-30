@@ -1,7 +1,14 @@
 @font-face {
-  font-family: "Pixelify Sans";
-  src: url("assets/fonts/PixelifySans-subset.woff2") format("woff2");
-  font-weight: 400 700;
+  font-family: "Noto Sans";
+  src: url("assets/fonts/NotoSans-Regular-subset.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto Sans";
+  src: url("assets/fonts/NotoSans-Bold-subset.woff2") format("woff2");
+  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
@@ -16,7 +23,7 @@
   --caution: #C17F59;
   --fade-bg: 180ms;
   --fade-panel: 160ms;
-  --font: "Pixelify Sans", "Noto Sans", "DejaVu Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  --font: "Noto Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --body-size: clamp(17px, 1.6vw, 24px);
   --name-size: clamp(19px, 1.9vw, 28px);
   --gap: clamp(8px, 1.2vw, 16px);
@@ -27,6 +34,14 @@
   :root { --fade-bg: 0ms; --fade-panel: 0ms; }
 }
 
+/* Per-character accent: speaker names (panel, feedback, cast) and the avatar frame. */
+[data-speaker="maria"] { --who: #A3306E; }
+[data-speaker="gennady"] { --who: #1E7040; }
+[data-speaker="pavel"] { --who: #1D5BB0; }
+[data-speaker="elena"] { --who: #B23A1E; }
+[data-speaker="oleg"] { --who: #8A5A00; }
+[data-speaker="darya"] { --who: #6A3FB5; }
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body {
@@ -36,8 +51,8 @@ html, body {
   color: var(--ink);
   font-family: var(--font);
   font-size: var(--body-size);
-  font-weight: 500;
-  line-height: 1.4;
+  font-weight: 400;
+  line-height: 1.45;
   font-synthesis: none;
   -webkit-text-size-adjust: 100%;
 }
@@ -173,7 +188,7 @@ button { font: inherit; color: inherit; }
   height: 56px;
   flex: none;
   background: var(--cream-deep);
-  border: 3px solid var(--navy);
+  border: 3px solid var(--who, var(--navy));
   object-fit: cover;
 }
 .speaker-name, #panel-title {
@@ -182,6 +197,7 @@ button { font: inherit; color: inherit; }
   color: var(--navy);
   line-height: 1.2;
 }
+.speaker-name { color: var(--who, var(--navy)); }
 #panel-title { margin: 0; }
 #panel-title:focus { outline: none; }
 #panel-title.is-quiet {
@@ -269,7 +285,7 @@ button { font: inherit; color: inherit; }
   color: var(--ink);
   border: 3px solid var(--frame);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 400;
   touch-action: manipulation;
 }
 .choice:hover:not(:disabled) { border-color: var(--navy); background: #fff; }
@@ -299,7 +315,7 @@ button { font: inherit; color: inherit; }
 .feedback[data-kind="good"] { box-shadow: inset 8px 0 0 var(--success); }
 .feedback h3 { margin: 0 0 6px; font-size: 1em; color: var(--navy); }
 .reaction p { margin: 0 0 6px; }
-.reaction b { color: var(--navy); }
+.reaction b { color: var(--who, var(--navy)); }
 .explanation { margin: 0; }
 .feedback-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 
@@ -349,7 +365,7 @@ button { font: inherit; color: inherit; }
   object-fit: contain;
   object-position: 50% 100%;
 }
-.cast figcaption h3 { margin: 6px 0 2px; font-size: 1em; color: var(--navy); }
+.cast figcaption h3 { margin: 6px 0 2px; font-size: 1em; color: var(--who, var(--navy)); }
 .cast figcaption p { margin: 0; font-size: 0.85em; }
 
 .noscript { position: absolute; inset: auto 16px 16px; padding: 16px; background: var(--cream); }
@@ -357,33 +373,40 @@ button { font: inherit; color: inherit; }
 /* ---------- wide layout ---------- */
 
 @media (min-width: 900px) and (min-height: 600px) {
+  /* Two columns that never overlap: the speaker cut-out on the left, the panel on the right.
+     The pair is centred once the panel reaches its maximum width. */
+  .stage {
+    --fig-w: min(58.5vh, 570px, 36vw);
+    --col-gap: clamp(16px, 2vw, 40px);
+    --panel-max: 1040px;
+    --side: max(20px, 2.5vw, calc((100vw - var(--fig-w) - var(--col-gap) - var(--panel-max)) / 2));
+  }
   .speaker-row .avatar { display: none; }
   .speaker-layer {
     display: block;
-    left: max(2vw, 16px);
+    left: var(--side);
     bottom: 0;
-    height: min(78vh, 760px);
-    width: auto;
+    width: var(--fig-w);
+    height: auto;
     aspect-ratio: 543 / 724;
   }
   .stage[data-speaker=""] .speaker-layer { display: none; }
   .panel {
-    left: 50%;
+    left: calc(var(--side) + var(--fig-w) + var(--col-gap));
     right: auto;
     bottom: calc(24px + var(--safe-b));
+    width: min(var(--panel-max), calc(100vw - 2 * var(--side) - var(--fig-w) - var(--col-gap)));
+    height: auto;
+    max-height: calc(100vh - 96px);
+    max-height: calc(100dvh - 96px);
+  }
+  /* Cards without a speaker (cast gallery, offer) use the full width. */
+  .stage[data-panel="card"][data-speaker=""] .panel {
+    left: 50%;
     transform: translateX(-50%);
     width: min(1180px, calc(100vw - 64px));
-    height: auto;
-    max-height: 45vh;
+    max-height: 82vh;
   }
-  .stage[data-panel="card"] .panel { max-height: 82vh; }
-  .stage[data-step-type="intro-role"] .panel {
-    left: auto;
-    right: max(3vw, 32px);
-    transform: none;
-    width: min(64vw, 900px);
-  }
-  .stage[data-step-type="intro-role"] .speaker-layer { left: max(3vw, 24px); }
   .cast { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
   .cast img { height: min(22vh, 230px); }
   .choices { grid-template-columns: 1fr; }

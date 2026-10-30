@@ -27,6 +27,19 @@ async function modeChecks(page, vp, { speaker }) {
   if (wide) {
     expect(opaqueCutouts, 'wide: one cut-out iff a speaker').toBe(speaker ? 1 : 0);
     expect(avatarVisible).toBe(false);
+    if (speaker) {
+      // The panel sits beside the cut-out, never over it, and the whole figure is on screen.
+      const box = await page.evaluate(() => {
+        const r = (n) => n.getBoundingClientRect();
+        const fig = r(document.querySelector('.speaker-layer.is-active'));
+        const panel = r(document.querySelector('.panel'));
+        return { figLeft: fig.left, figRight: fig.right, figTop: fig.top, panelLeft: panel.left, panelRight: panel.right };
+      });
+      expect(box.figLeft).toBeGreaterThanOrEqual(0);
+      expect(box.figTop).toBeGreaterThanOrEqual(0);
+      expect(box.figRight, 'cut-out ends before the panel starts').toBeLessThanOrEqual(box.panelLeft);
+      expect(box.panelRight).toBeLessThanOrEqual(vp.width);
+    }
   } else {
     expect(opaqueCutouts, 'avatar mode: no cut-out').toBe(0);
     expect(avatarVisible, 'avatar mode: avatar iff speaker').toBe(Boolean(speaker));

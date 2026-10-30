@@ -435,7 +435,9 @@
       var c = character(r.speaker);
       if (c) {
         if (!firstSpeaker) firstSpeaker = r.speaker;
-        p.appendChild(make('b', null, c.name + ': '));
+        var name = make('b', null, c.name + ': ');
+        name.setAttribute('data-speaker', r.speaker);
+        p.appendChild(name);
       }
       p.appendChild(document.createTextNode(r.text));
       el.reaction.appendChild(p);
@@ -514,6 +516,7 @@
       var c = character(id);
       var li = make('li');
       var fig = make('figure');
+      fig.setAttribute('data-speaker', id);
       var pic = make('picture');
       var source = make('source');
       source.media = '(min-width: 900px) and (min-height: 600px)';

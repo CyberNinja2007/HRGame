@@ -117,15 +117,27 @@ test.describe('reduced motion', () => {
   test.use({ reducedMotion: 'reduce' });
 
   test('(f) a human-paced double click (150 ms apart) opens exactly one new screen', async ({ page, gameUrl }) => {
+    // Learn where «Далее» sits on Intro D, then replay from the start: both clicks are raw mouse clicks
+    // 150 ms apart with no harness round trips between them (slow engines would otherwise exceed the guard).
+    await open(page, gameUrl);
+    await advanceTo(page, 'intro-lead');
+    const lead = await primary(page).boundingBox();
     await open(page, gameUrl);
     await advanceTo(page, 'intro-cast');
     await page.waitForLoadState('networkidle'); // Intro D images cached: its commit is immediate
-    await primary(page).click(); // first click of the pair
-    await waitStep(page, 'intro-lead');
-    const box = await primary(page).boundingBox();
+    await primary(page).scrollIntoViewIfNeeded();
+    await expect(primary(page)).not.toHaveAttribute('aria-disabled', 'true'); // Intro C's own guard has expired
+    const cast = await primary(page).boundingBox();
+    await page.evaluate(() => {
+      window.__clicks = [];
+      document.addEventListener('click', (e) => window.__clicks.push(e.target.id), true);
+    });
+    await page.mouse.click(cast.x + cast.width / 2, cast.y + cast.height / 2); // first click of the pair
     await page.waitForTimeout(150);
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.click(lead.x + lead.width / 2, lead.y + lead.height / 2);
     await page.waitForTimeout(400);
+    await expect(page.locator('.stage')).toHaveAttribute('data-step-type', 'intro-lead');
+    expect(await page.evaluate(() => window.__clicks), 'both clicks reached «Далее»').toEqual(['primary', 'primary']);
     // Instant text: without the guard the second click would show line 2 (Maria's thought).
     await expect(page.locator('.dialogue')).toHaveText(/^В архиве/);
     await expect(primary(page)).toBeFocused();
