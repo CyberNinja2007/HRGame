@@ -254,6 +254,10 @@ def check() -> int:
         names = " ".join(str(r) for r in pixel["name"].names if r.nameID in (1, 3, 4, 6, 16))
         need("Press Start" not in names and "PressStart" not in names, f"{PIXEL_OUT.name} still uses the Reserved Font Name")
     need(PIXEL_OFL_OUT.exists(), f"{PIXEL_OFL_OUT.name} missing")
+    for out in [*FONTS.values(), SYMBOLS_OUT, PIXEL_OUT]:
+        if out.exists():
+            names = TTFont(out)["name"]
+            need(all(names.getDebugName(i) for i in (0, 13)), f"{out.name} lacks its copyright (ID 0) or licence (ID 13) record")
     shipped = {p.name for p in (OUT / "fonts").iterdir()}
     expected = {OFL_OUT.name, SYMBOLS_OUT.name, PIXEL_OUT.name, PIXEL_OFL_OUT.name} | {p.name for p in FONTS.values()}
     need(shipped == expected, f"unexpected files in assets/fonts: {sorted(shipped)}")

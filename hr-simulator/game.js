@@ -48,7 +48,9 @@
   // A save names its screen (scene id or step type) as well as its index, so a save made before a story
   // edit that shifts the steps is discarded instead of resuming on a different screen.
   function stepId(i) {
-    return steps[i].scene ? steps[i].scene.id : steps[i].type;
+    var s = steps[i];
+    if (s.scene) return s.scene.id;
+    return s.type === 'transition' ? s.type + '-' + s.phase.id : s.type;
   }
 
   // Without usable localStorage the game simply plays without a save (progress ends with the page).

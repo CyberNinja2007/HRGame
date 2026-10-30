@@ -93,7 +93,7 @@ test('ending and ending restart clear the save @parity', async ({ page, gameUrl,
 test('corrupt and out-of-range saves are ignored and removed @parity', async ({ page, gameUrl, browserName, transport }) => {
   test.skip(storageMode(browserName, transport) !== 'persist', 'storage does not persist here');
   await open(page, gameUrl);
-  for (const bad of ['{', 'null', '{"v":2,"step":5}', '{"v":1,"step":0}', '{"v":1,"step":19}', '{"v":1,"step":1.5}', '{"v":1,"step":"5"}', '{"v":1,"step":5}', '{"v":1,"step":5,"id":"d03"}', '{"v":2,"step":5,"id":"d02"}']) {
+  for (const bad of ['{', 'null', '{"v":2,"step":5}', '{"v":1,"step":0}', '{"v":1,"step":19}', '{"v":1,"step":1.5}', '{"v":1,"step":"5"}', '{"v":1,"step":5}', '{"v":1,"step":5,"id":"d03"}', '{"v":2,"step":5,"id":"d02"}', '{"v":1,"step":9,"id":"transition-onsite"}']) {
     await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, bad]);
     await reload(page);
     await expectNormalIntro(page);
@@ -122,4 +122,24 @@ test('non-persistent storage matches the recorded expectation @parity', async ({
   await waitStep(page, 'intro-role');
   await reload(page);
   await expectNormalIntro(page);
+});
+
+test('each transition screen saves its own id and resumes onto itself @parity', async ({ page, gameUrl, browserName, transport }) => {
+  test.skip(storageMode(browserName, transport) !== 'persist', 'storage does not persist here');
+  await open(page, gameUrl);
+  await goToScene(page, 5);
+  await revealChoices(page);
+  await choose(page, 'А');
+  await page.locator('.feedback-btn').click(); // D5 А is the correct answer
+  await waitStep(page, 'transition');
+  expect(JSON.parse(await readSave(page))).toEqual({ v: 1, step: 9, id: 'transition-phone' });
+
+  // The onsite transition (step 15) must not share that id: resume it from a hand-written save.
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, saveValue(15)]);
+  await reload(page);
+  await expectResumeScreen(page);
+  await primary(page).click();
+  await waitStep(page, 'transition');
+  await expect(page.locator('#panel-title')).toHaveText(DATA.phases[1].title);
+  expect(JSON.parse(await readSave(page))).toEqual({ v: 1, step: 15, id: 'transition-onsite' });
 });

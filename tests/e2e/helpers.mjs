@@ -17,8 +17,8 @@ export const VIEWPORTS = {
 /** Screen id of each step index, as game.js stores it in the save next to the index. */
 export const STEP_IDS = [
   'intro-company', 'intro-role', 'intro-cast', 'intro-lead',
-  'd01', 'd02', 'd03', 'd04', 'd05', 'transition',
-  'd06', 'd07', 'd08', 'd09', 'd10', 'transition',
+  'd01', 'd02', 'd03', 'd04', 'd05', 'transition-phone',
+  'd06', 'd07', 'd08', 'd09', 'd10', 'transition-onsite',
   'd11', 'd12', 'offer', 'ending',
 ];
 /** The save value game.js writes for a step (JSON string). */
