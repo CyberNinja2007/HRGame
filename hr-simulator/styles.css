@@ -13,6 +13,32 @@
   font-display: swap;
 }
 
+/* The arrow face joins each weight separately: a ranged weight would win the match for 600 and leave
+   every other letter to the system font. */
+@font-face {
+  font-family: "Noto Sans";
+  src: url("assets/fonts/NotoSansSymbols-arrow.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+2192;
+}
+@font-face {
+  font-family: "Noto Sans";
+  src: url("assets/fonts/NotoSansSymbols-arrow.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+2192;
+}
+@font-face {
+  font-family: "HRSim Pixel";
+  src: url("assets/fonts/HRSimPixel-subset.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --ink: #25334F;
   --cream: #F8F4EB;
@@ -24,8 +50,10 @@
   --fade-bg: 180ms;
   --fade-panel: 160ms;
   --font: "Noto Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Pixel face (Press Start 2P, renamed) only for short labels: titles, names, buttons, letters.
+     Its pixel grid is 8 units, so it is only ever set at 8, 16 or 24 px to stay crisp. */
+  --font-pixel: "HRSim Pixel", var(--font);
   --body-size: clamp(17px, 1.6vw, 24px);
-  --name-size: clamp(19px, 1.9vw, 28px);
   --gap: clamp(8px, 1.2vw, 16px);
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
@@ -191,12 +219,7 @@ button { font: inherit; color: inherit; }
   border: 3px solid var(--who, var(--navy));
   object-fit: cover;
 }
-.speaker-name, #panel-title {
-  font-size: var(--name-size);
-  font-weight: 700;
-  color: var(--navy);
-  line-height: 1.2;
-}
+.speaker-name, #panel-title { color: var(--navy); }
 .speaker-name { color: var(--who, var(--navy)); }
 #panel-title { margin: 0; }
 #panel-title:focus { outline: none; }
@@ -231,7 +254,6 @@ button { font: inherit; color: inherit; }
   border: 0;
   box-shadow: 0 0 0 3px var(--frame);
   cursor: pointer;
-  font-weight: 700;
   touch-action: manipulation;
 }
 .btn.secondary { background: var(--cream); color: var(--navy); box-shadow: inset 0 0 0 3px var(--navy); }
@@ -296,7 +318,6 @@ button { font: inherit; color: inherit; }
   height: 1.8em;
   background: var(--navy);
   color: var(--cream);
-  font-weight: 700;
 }
 .choice:disabled { cursor: default; opacity: 0.55; }
 .choices.is-arming .choice:disabled { opacity: 1; } /* brief input guard after reveal: no visual flash */
@@ -317,7 +338,16 @@ button { font: inherit; color: inherit; }
 .reaction p { margin: 0 0 6px; }
 .reaction b { color: var(--who, var(--navy)); }
 .explanation { margin: 0; }
-.feedback-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+/* The explanation is scrolled to its top; its button stays pinned to the panel bottom so focus is visible. */
+.feedback-actions {
+  position: sticky;
+  bottom: calc(-1 * clamp(14px, 2vw, 22px));
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 -8px -8px;
+  padding: 10px 8px 8px;
+  background: #fffdf8;
+}
 
 /* ---------- cards ---------- */
 
@@ -370,6 +400,18 @@ button { font: inherit; color: inherit; }
 
 .noscript { position: absolute; inset: auto 16px 16px; padding: 16px; background: var(--cream); }
 
+/* ---------- pixel labels ---------- */
+
+#panel-title, .speaker-name, .feedback h3, .cast figcaption h3, .choice-letter, .btn {
+  font-family: var(--font-pixel);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.cast figcaption h3 { line-height: 1.4; }
+.choice-letter { line-height: 1; padding-top: 2px; } /* the face keeps descender room below its capitals */
+
 /* ---------- wide layout ---------- */
 
 @media (min-width: 900px) and (min-height: 600px) {
@@ -382,6 +424,7 @@ button { font: inherit; color: inherit; }
     --side: max(20px, 2.5vw, calc((100vw - var(--fig-w) - var(--col-gap) - var(--panel-max)) / 2));
   }
   .speaker-row .avatar { display: none; }
+  #panel-title, .speaker-name { font-size: 24px; line-height: 1.4; }
   .speaker-layer {
     display: block;
     left: var(--side);

@@ -109,6 +109,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
       await choose(page, 'А');
       await common(page);
       await expect(page.locator('#feedback-title')).toBeInViewport({ ratio: 1 });
+      await expect(page.locator('.feedback-btn')).toBeFocused();
+      await expect(page.locator('.feedback-btn'), 'focused button visible while the explanation shows from its top').toBeInViewport({ ratio: 1 });
       await shot(page, testInfo, vpName, '08-feedback-improve');
       await page.locator('.feedback-btn').click();
       await choose(page, CORRECT[1]);
@@ -130,6 +132,8 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
           await shot(page, testInfo, vpName, '11-meeting-question');
         }
         await choose(page, CORRECT[i]);
+        await expect(page.locator('.feedback-btn'), `D${i}: focused feedback button is visible`).toBeFocused();
+        await expect(page.locator('.feedback-btn')).toBeInViewport({ ratio: 1 });
         if (i === 8) {
           await page.locator('.feedback-btn').click();
           continue;
@@ -153,3 +157,20 @@ for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     });
   });
 }
+
+test('crossing the wide breakpoint never shows a previous speaker in the cut-out', async ({ page, gameUrl }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page, gameUrl);
+  await primary(page).click();
+  await waitStep(page, 'intro-role'); // wide: Maria's cut-out loads into one layer
+  await expect(page.locator('.speaker-layer.is-active')).toHaveAttribute('src', /maria/);
+  await page.setViewportSize({ width: 800, height: 800 });
+  await goToScene(page, 1); // avatar mode: Maria (Intro D) then Gennady (D1) swap the hidden layers
+  await expect(page.locator('.stage')).toHaveAttribute('data-speaker', 'gennady');
+  // On a switch to wide mode game.js gives the active layer the new portrait; until that loads the layer paints
+  // whatever it held before, so in avatar mode the active layer must not keep an earlier speaker's cut-out.
+  const held = await page.evaluate(() => document.querySelector('.speaker-layer.is-active').getAttribute('src') || '');
+  expect(held, 'active layer holds no previous portrait').not.toMatch(/maria/);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(page.locator('.speaker-layer.is-active')).toHaveAttribute('src', /gennady/);
+});

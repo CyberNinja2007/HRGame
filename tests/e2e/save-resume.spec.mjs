@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from './fixtures.mjs';
-import { open, bootDone, next, primary, waitStep, goToScene, revealChoices, choose } from './helpers.mjs';
+import { open, bootDone, next, primary, waitStep, goToScene, revealChoices, choose, saveValue } from './helpers.mjs';
 import { DATA, playthrough } from './flows.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -42,10 +42,10 @@ test('progress is saved per step and resumed fresh @parity', async ({ page, game
 
   await next(page);
   await waitStep(page, 'intro-role');
-  expect(JSON.parse(await readSave(page))).toEqual({ v: 1, step: 1 });
+  expect(JSON.parse(await readSave(page))).toEqual({ v: 1, step: 1, id: 'intro-role' });
 
   await goToScene(page, 7);
-  expect(JSON.parse(await readSave(page))).toEqual({ v: 1, step: D7 });
+  expect(JSON.parse(await readSave(page))).toEqual({ v: 1, step: D7, id: 'd07' });
 
   // Open a wrong-answer feedback; resume must reopen the question fresh.
   await revealChoices(page);
@@ -74,7 +74,7 @@ test('progress is saved per step and resumed fresh @parity', async ({ page, game
 test('ending and ending restart clear the save @parity', async ({ page, gameUrl, browserName, transport }) => {
   test.skip(storageMode(browserName, transport) !== 'persist', 'storage does not persist here');
   await open(page, gameUrl);
-  await page.evaluate((k) => localStorage.setItem(k, JSON.stringify({ v: 1, step: 18 })), KEY);
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, saveValue(18)]);
   await reload(page);
   await expectResumeScreen(page);
   await primary(page).click();
@@ -93,7 +93,7 @@ test('ending and ending restart clear the save @parity', async ({ page, gameUrl,
 test('corrupt and out-of-range saves are ignored and removed @parity', async ({ page, gameUrl, browserName, transport }) => {
   test.skip(storageMode(browserName, transport) !== 'persist', 'storage does not persist here');
   await open(page, gameUrl);
-  for (const bad of ['{', 'null', '{"v":2,"step":5}', '{"v":1,"step":0}', '{"v":1,"step":19}', '{"v":1,"step":1.5}', '{"v":1,"step":"5"}']) {
+  for (const bad of ['{', 'null', '{"v":2,"step":5}', '{"v":1,"step":0}', '{"v":1,"step":19}', '{"v":1,"step":1.5}', '{"v":1,"step":"5"}', '{"v":1,"step":5}', '{"v":1,"step":5,"id":"d03"}', '{"v":2,"step":5,"id":"d02"}']) {
     await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, bad]);
     await reload(page);
     await expectNormalIntro(page);

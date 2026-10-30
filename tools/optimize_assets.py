@@ -60,6 +60,19 @@ FONTS = {
 }
 OFL_SRC = FONT_DIR / "OFL.txt"
 OFL_OUT = OUT / "fonts" / "OFL.txt"
+# Noto Sans has no arrows; this one-glyph subset is loaded as part of the "Noto Sans" family (unicode-range).
+SYMBOLS_SRC = FONT_DIR / "NotoSansSymbols-Regular.ttf"
+SYMBOLS_OUT = OUT / "fonts" / "NotoSansSymbols-arrow.woff2"
+SYMBOLS_RANGES = [(0x2192, 0x2192)]
+
+# Pixel face for short display text only (titles, names, buttons), from the starter pack.
+# "Press Start 2P" is a Reserved Font Name under its OFL, and a subset is a Modified Version,
+# so the subset is renamed (name table) and loaded under that name.
+PIXEL_SRC = SRC / "Press_Start_2P" / "PressStart2P-Regular.ttf"
+PIXEL_OUT = OUT / "fonts" / "HRSimPixel-subset.woff2"
+PIXEL_NAME = "HRSim Pixel"
+PIXEL_OFL_SRC = SRC / "Press_Start_2P" / "OFL.txt"
+PIXEL_OFL_OUT = OUT / "fonts" / "OFL-HRSimPixel.txt"
 
 # Only what the Russian story can show: ASCII, basic Cyrillic and the punctuation it uses.
 # `glyphs` fails if new text needs anything else.
@@ -76,10 +89,6 @@ UNICODE_RANGES = [
     (0x2116, 0x2116),
 ]
 
-# Code points the font genuinely lacks; rendered by the system fallbacks at the end of the CSS stack.
-GLYPH_ALLOWLIST = {
-    0x2192: "RIGHTWARDS ARROW: absent from Noto Sans (lives in Noto Sans Symbols); used once in a verbatim source option",
-}
 
 
 def webp_bytes(img: Image.Image, **opts) -> bytes:
@@ -99,9 +108,22 @@ def fit_lossy(img: Image.Image, budget: int, start_q: int, min_q: int, **opts) -
         q -= 2
 
 
+def rename_family(font: TTFont, family: str) -> None:
+    name = font["name"]
+    postscript = family.replace(" ", "") + "-Regular"
+    for rec in list(name.names):
+        if rec.nameID in (1, 16):
+            name.setName(family, rec.nameID, rec.platformID, rec.platEncID, rec.langID)
+        elif rec.nameID in (3, 4):
+            name.setName(f"{family} Regular", rec.nameID, rec.platformID, rec.platEncID, rec.langID)
+        elif rec.nameID == 6:
+            name.setName(postscript, rec.nameID, rec.platformID, rec.platEncID, rec.langID)
+
+
 def save_subset(font: TTFont, ranges: list[tuple[int, int]], out: Path) -> None:
     opts = subset.Options()
     opts.flavor = "woff2"
+    opts.name_IDs = ["*"]  # keep the copyright and licence records
     opts.notdef_outline = True
     opts.hinting = False  # browsers rasterise unhinted outlines well; hints were over a third of the file
     sub = subset.Subsetter(opts)
@@ -166,7 +188,19 @@ def build() -> None:
     for src, out in FONTS.items():
         save_subset(TTFont(src), UNICODE_RANGES, out)
         metrics[f"font/{out.name}"] = {"bytes": out.stat().st_size}
+    save_subset(TTFont(SYMBOLS_SRC), SYMBOLS_RANGES, SYMBOLS_OUT)
+    metrics[f"font/{SYMBOLS_OUT.name}"] = {"bytes": SYMBOLS_OUT.stat().st_size}
     shutil.copyfile(OFL_SRC, OFL_OUT)
+    pixel = TTFont(PIXEL_SRC)
+    rename_family(pixel, PIXEL_NAME)
+    save_subset(pixel, UNICODE_RANGES, PIXEL_OUT)
+    metrics[f"font/{PIXEL_OUT.name}"] = {"bytes": PIXEL_OUT.stat().st_size}
+    PIXEL_OFL_OUT.write_text(
+        f"{PIXEL_OUT.name} (family \"{PIXEL_NAME}\") is a subset of Press Start 2P, renamed because\n"
+        "\"Press Start 2P\" is a Reserved Font Name. Original licence below.\n\n"
+        + PIXEL_OFL_SRC.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
 
     (REVIEW / "metrics.json").write_text(json.dumps(metrics, indent=2))
     print(json.dumps(metrics, indent=2))
@@ -211,8 +245,18 @@ def check() -> int:
             cmap = TTFont(out).getBestCmap()
             need(all(ord(c) in cmap for c in "АБВКОПабвкопЁёЙйЖжЯя«»—–…№₽\u202f"), f"{out.name} lacks required Cyrillic/punctuation")
     need(OFL_OUT.exists(), "OFL.txt missing next to the fonts")
+    need(SYMBOLS_OUT.exists() and set(TTFont(SYMBOLS_OUT).getBestCmap()) >= {0x2192}, f"{SYMBOLS_OUT.name} missing or lacks U+2192")
+    need(PIXEL_OUT.exists() and PIXEL_OUT.read_bytes()[:4] == b"wOF2", f"{PIXEL_OUT.name} missing or not woff2")
+    if PIXEL_OUT.exists():
+        pixel = TTFont(PIXEL_OUT)
+        need(PIXEL_OUT.stat().st_size <= BUDGET["font"], f"{PIXEL_OUT.name} {PIXEL_OUT.stat().st_size} > {BUDGET['font']}")
+        need(all(ord(c) in pixel.getBestCmap() for c in "АБВКОПабвкопЁёЙйЖжЯя«»—–…№"), f"{PIXEL_OUT.name} lacks required Cyrillic/punctuation")
+        names = " ".join(str(r) for r in pixel["name"].names if r.nameID in (1, 3, 4, 6, 16))
+        need("Press Start" not in names and "PressStart" not in names, f"{PIXEL_OUT.name} still uses the Reserved Font Name")
+    need(PIXEL_OFL_OUT.exists(), f"{PIXEL_OFL_OUT.name} missing")
     shipped = {p.name for p in (OUT / "fonts").iterdir()}
-    need(shipped == {"OFL.txt"} | {p.name for p in FONTS.values()}, f"unexpected files in assets/fonts: {sorted(shipped)}")
+    expected = {OFL_OUT.name, SYMBOLS_OUT.name, PIXEL_OUT.name, PIXEL_OFL_OUT.name} | {p.name for p in FONTS.values()}
+    need(shipped == expected, f"unexpected files in assets/fonts: {sorted(shipped)}")
     stray = [p.relative_to(ROOT) for p in OUT.rglob("*") if p.suffix.lower() in {".ttf", ".otf"}]
     need(not stray, f"raw font files shipped: {stray}")
 
@@ -223,19 +267,18 @@ def check() -> int:
 
 
 def glyphs(files: list[str]) -> int:
-    cmap = TTFont(next(iter(FONTS.values()))).getBestCmap()
+    # The "Noto Sans" family as the CSS declares it: the text subset plus the arrow subset.
+    cmap = set(TTFont(next(iter(FONTS.values()))).getBestCmap()) | set(TTFont(SYMBOLS_OUT).getBestCmap())
     used: set[int] = set()
     for f in files:
         text = (ROOT / f).read_text(encoding="utf-8")
         # Only characters that can reach the screen: skip ASCII control chars.
         used.update(ord(c) for c in text if ord(c) >= 0x20)
     missing = sorted(c for c in used if c not in cmap)
-    bad = [c for c in missing if c not in GLYPH_ALLOWLIST]
     for c in missing:
-        tag = "allowed" if c in GLYPH_ALLOWLIST else "MISSING"
-        print(f"{tag} U+{c:04X} {chr(c)!r} {GLYPH_ALLOWLIST.get(c, '')}")
-    print("glyphs:", "OK" if not bad else f"{len(bad)} unsupported code point(s)")
-    return 1 if bad else 0
+        print(f"MISSING U+{c:04X} {chr(c)!r}")
+    print("glyphs:", "OK" if not missing else f"{len(missing)} unsupported code point(s)")
+    return 1 if missing else 0
 
 
 def main(argv: list[str]) -> int:

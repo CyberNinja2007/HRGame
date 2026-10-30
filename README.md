@@ -5,7 +5,7 @@
 ## Структура
 
 - `hr-simulator/` — корень публикации: `index.html`, `styles.css`, `game.js`, `game-data.js`, `assets/` (изображения WebP, сокращённый шрифт и `OFL.txt`) и README для игроков. Только эта папка попадает на хостинг.
-- `tools/` — подготовка ресурсов на Python (`optimize_assets.py`): оптимизация изображений, сокращение шрифта до нужных знаков, проверка. Исходные файлы шрифта Noto Sans с лицензией лежат в `tools/fonts/NotoSans/`. Зависимости: `tools/requirements.txt` (`pip install -r tools/requirements.txt`).
+- `tools/` — подготовка ресурсов на Python (`optimize_assets.py`): оптимизация изображений, сокращение шрифтов до нужных знаков, проверка. Исходные файлы Noto Sans и Noto Sans Symbols с лицензией лежат в `tools/fonts/NotoSans/`, Press Start 2P — в стартовом наборе. Зависимости: `tools/requirements.txt` (`pip install -r tools/requirements.txt`).
 - `tests/` — модульные тесты (`tests/unit/`), сквозные тесты Playwright (`tests/e2e/`), конфигурация Playwright, статический сервер `tests/serve.mjs`, запуск Lighthouse (`tests/lighthouse/`) и `tests/run-in-container.sh`.
 - `HR_Simulator_Static_HTML_Starter_Pack/` — исходное ТЗ и сюжетный материал; тесты сверяют с ними тексты игры.
 - `package.json` содержит только `devDependencies` (Playwright, axe, Lighthouse); в игру они не попадают.
@@ -19,7 +19,7 @@
 | `npm run serve` | Локальный статический сервер на 127.0.0.1:8123 (корень репозитория). |
 | `npm run assets` | Пересобирает ресурсы в `hr-simulator/assets` (нужен Python 3 и `tools/requirements.txt`). |
 | `npm run assets:check` | Проверяет, что ресурсы соответствуют бюджету и правилам. |
-| `npm run assets:glyphs` | Проверяет, что в сокращённом шрифте есть все знаки из `game-data.js` и `index.html`. |
+| `npm run assets:glyphs` | Проверяет, что в сокращённом шрифте есть все знаки из `game-data.js` и `index.html`. Стрелку `→` даёт отдельное одноглифовое подмножество Noto Sans Symbols. |
 | `npm run test:unit` | Модульные тесты Node (`node --test tests/unit/`). |
 | `npm run test:e2e` | Все сквозные тесты Playwright: Chromium, Firefox, WebKit × http и file. |
 | `npm run test:e2e:native` | То же только для Chromium и Firefox. |

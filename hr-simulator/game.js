@@ -45,27 +45,30 @@
 
   /* ---------------- storage (never throws) ---------------- */
 
-  var memorySave = null;
+  // A save names its screen (scene id or step type) as well as its index, so a save made before a story
+  // edit that shifts the steps is discarded instead of resuming on a different screen.
+  function stepId(i) {
+    return steps[i].scene ? steps[i].scene.id : steps[i].type;
+  }
+
+  // Without usable localStorage the game simply plays without a save (progress ends with the page).
   var storage = {
     read: function () {
       var raw = null;
-      try { raw = window.localStorage.getItem(SAVE_KEY); } catch (e) { raw = memorySave; }
+      try { raw = window.localStorage.getItem(SAVE_KEY); } catch (e) { return null; }
       if (raw == null) return null;
       try {
         var v = JSON.parse(raw);
-        if (v && v.v === 1 && Number.isInteger(v.step) && v.step >= 1 && v.step < steps.length - 1) return v.step;
+        if (v && v.v === 1 && Number.isInteger(v.step) && v.step >= 1 && v.step < steps.length - 1 && v.id === stepId(v.step)) return v.step;
       } catch (e) { /* corrupt value: removed below */ }
       storage.clear();
       return null;
     },
     write: function (step) {
-      var raw = JSON.stringify({ v: 1, step: step });
-      memorySave = raw;
-      try { window.localStorage.setItem(SAVE_KEY, raw); } catch (e) { /* in-memory fallback */ }
+      try { window.localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, step: step, id: stepId(step) })); } catch (e) { /* no save */ }
     },
     clear: function () {
-      memorySave = null;
-      try { window.localStorage.removeItem(SAVE_KEY); } catch (e) { /* in-memory fallback */ }
+      try { window.localStorage.removeItem(SAVE_KEY); } catch (e) { /* no save */ }
     }
   };
 
@@ -278,6 +281,8 @@
       setSrc(next, c.portrait);
       whenReady(speakerSwap, next, swap);
     } else {
+      // Drop the cut-out the layer held earlier, so a later switch to wide mode never shows a stale face.
+      next.removeAttribute('src');
       speakerSwap.token++;
       swap();
     }
@@ -720,6 +725,12 @@
   }
 
   /* ---------------- events ---------------- */
+
+  // The second click of a double click (or a second quick tap) is never a separate intent, however slowly the
+  // OS paces it: the fixed arming window alone lets a ~300 ms double click skip the line that just opened.
+  panel.addEventListener('click', function (e) {
+    if (e.detail >= 2) e.stopImmediatePropagation();
+  }, true);
 
   el.primary.addEventListener('click', function (e) {
     if (e.detail > 0 && primaryArming()) return;

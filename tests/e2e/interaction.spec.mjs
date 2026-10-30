@@ -1,6 +1,6 @@
 // Interaction contract: typing completion, double activation, touch, Space, drag-scroll.
 import { test, expect } from './fixtures.mjs';
-import { open, bootDone, next, primary, waitStep, advanceTo, goToScene, revealChoices, restLength, choicesShown } from './helpers.mjs';
+import { open, bootDone, next, primary, waitStep, advanceTo, goToScene, revealChoices, restLength, choicesShown, saveValue } from './helpers.mjs';
 
 test.skip(({ transport }) => transport !== 'http', 'interaction runs on the served build');
 test.use({ reducedMotion: 'no-preference' });
@@ -51,7 +51,7 @@ test.describe('touch', () => {
   test('(c) taps on D7 complete lines without double advance @motion', async ({ page, gameUrl }, testInfo) => {
     test.skip(testInfo.project.name.startsWith('firefox'), 'Firefox has no mobile emulation');
     await page.goto(gameUrl);
-    await page.evaluate(() => localStorage.setItem('hrsim.save.v1', JSON.stringify({ v: 1, step: 11 })));
+    await page.evaluate((v) => localStorage.setItem('hrsim.save.v1', v), saveValue(11));
     await page.waitForLoadState('networkidle');
     await page.reload();
     await bootDone(page);
@@ -141,5 +141,25 @@ test.describe('reduced motion', () => {
     // Instant text: without the guard the second click would show line 2 (Maria's thought).
     await expect(page.locator('.dialogue')).toHaveText(/^В архиве/);
     await expect(primary(page)).toBeFocused();
+  });
+
+  test('(g) a slow double click (~300 ms, past the arming window) advances exactly one line', async ({ page, gameUrl }) => {
+    await open(page, gameUrl);
+    await advanceTo(page, 'intro-lead');
+    await page.waitForLoadState('networkidle');
+    await expect(primary(page)).not.toHaveAttribute('aria-disabled', 'true');
+    await page.evaluate(() => {
+      window.__clicks = [];
+      document.addEventListener('click', (e) => window.__clicks.push([performance.now(), e.detail]), true);
+    });
+    const b = await primary(page).boundingBox();
+    // Playwright's delay is between mousedown and mouseup, so the two click events land ~300 ms apart.
+    await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2, { delay: 150 });
+    await page.waitForTimeout(400);
+    const clicks = await page.evaluate(() => window.__clicks);
+    expect(clicks.map(([, d]) => d)).toEqual([1, 2]);
+    expect(clicks[1][0] - clicks[0][0], 'second click lands after the 250 ms guard').toBeGreaterThan(250);
+    await expect(page.locator('.stage')).toHaveAttribute('data-step-type', 'intro-lead');
+    await expect(page.locator('.dialogue')).toHaveText(/^Сначала проверю/);
   });
 });

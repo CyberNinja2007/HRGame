@@ -11,7 +11,18 @@ export const VIEWPORTS = {
   laptop: { width: 1366, height: 768 },
   phone: { width: 390, height: 844 },
   landscape: { width: 844, height: 390 },
+  edge: { width: 900, height: 600 }, // smallest wide layout
 };
+
+/** Screen id of each step index, as game.js stores it in the save next to the index. */
+export const STEP_IDS = [
+  'intro-company', 'intro-role', 'intro-cast', 'intro-lead',
+  'd01', 'd02', 'd03', 'd04', 'd05', 'transition',
+  'd06', 'd07', 'd08', 'd09', 'd10', 'transition',
+  'd11', 'd12', 'offer', 'ending',
+];
+/** The save value game.js writes for a step (JSON string). */
+export const saveValue = (step) => JSON.stringify({ v: 1, step, id: STEP_IDS[step] });
 
 export const CORRECT = { 1: 'Б', 2: 'А', 3: 'В', 4: 'Б', 5: 'А', 6: 'Б', 7: 'В', 8: 'А', 9: 'Б', 10: 'В', 11: 'А', 12: 'Б' };
 
@@ -143,10 +154,18 @@ export async function assertVisibleImagesLoaded(page) {
 export async function assertFontLoaded(page) {
   const ok = await page.evaluate(async () => {
     await document.fonts.ready;
-    const loaded = (weight) => Array.from(document.fonts).some((f) => f.family.replace(/"/g, '') === 'Noto Sans' && f.weight === weight && f.status === 'loaded');
-    return { regular: loaded('400'), bold: loaded('700') };
+    const loaded = (family, weight) => Array.from(document.fonts).some((f) =>
+      f.family.replace(/"/g, '') === family && f.weight === weight && f.status === 'loaded' && f.unicodeRange.includes('U+0-10FFFF'));
+    const used = (sel) => getComputedStyle(document.querySelector(sel)).fontFamily.split(',')[0].replace(/"/g, '').trim();
+    return {
+      text: loaded('Noto Sans', '400'), bold: loaded('Noto Sans', '700'), pixel: loaded('HRSim Pixel', '400'),
+      dialogue: used('.dialogue'), subtitle: used('.subtitle'), title: used('#panel-title'), button: used('#primary'),
+    };
   });
-  expect(ok, 'Noto Sans regular and bold are loaded').toEqual({ regular: true, bold: true });
+  expect(ok, 'text face (Noto Sans 400/700) and pixel label face are loaded and assigned').toEqual({
+    text: true, bold: true, pixel: true,
+    dialogue: 'Noto Sans', subtitle: 'Noto Sans', title: 'HRSim Pixel', button: 'HRSim Pixel',
+  });
 }
 
 /** Panel scrollable (if needed) and its last visible action reachable. */

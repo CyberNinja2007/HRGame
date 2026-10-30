@@ -1,6 +1,6 @@
 // Motion contract: typing gate, completion keys, durations, reduced motion, preload, one speaker layer.
 import { test, expect } from './fixtures.mjs';
-import { open, next, primary, waitStep, advanceTo, goToScene, revealChoices, choose, restLength, choicesShown, CORRECT } from './helpers.mjs';
+import { open, next, primary, waitStep, advanceTo, goToScene, revealChoices, choose, restLength, choicesShown, CORRECT, saveValue } from './helpers.mjs';
 import { DATA } from './flows.mjs';
 
 test.skip(({ transport }) => transport !== 'http', 'motion runs on the served build');
@@ -73,7 +73,7 @@ test.describe('with motion', () => {
   test('wide mode crossfades speaker to speaker with exactly one opaque layer @motion', async ({ page, gameUrl }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto(gameUrl);
-    await page.evaluate(() => localStorage.setItem('hrsim.save.v1', JSON.stringify({ v: 1, step: 11 })));
+    await page.evaluate((v) => localStorage.setItem('hrsim.save.v1', v), saveValue(11));
     await page.reload();
     await expect(page.locator('.stage')).not.toHaveClass(/is-booting/);
     await primary(page).click(); // «Продолжить» → D7: pavel → gennady → narration
@@ -183,7 +183,7 @@ test('step headings are announced on titled dialogue steps', async ({ page, game
 
 test('a tap on the final ending line does not restart; only the button does', async ({ page, gameUrl }) => {
   await open(page, gameUrl);
-  await page.evaluate(() => localStorage.setItem('hrsim.save.v1', JSON.stringify({ v: 1, step: 18 })));
+  await page.evaluate((v) => localStorage.setItem('hrsim.save.v1', v), saveValue(18));
   await page.reload();
   await expect(page.locator('.stage')).not.toHaveClass(/is-booting/);
   await primary(page).click();

@@ -1,7 +1,7 @@
 // Accessibility: axe-core on every screen kind, plus the polite live region contract.
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from './fixtures.mjs';
-import { open, bootDone, primary, waitStep, advanceTo, revealChoices, restLength } from './helpers.mjs';
+import { open, bootDone, primary, waitStep, advanceTo, revealChoices, restLength, saveValue } from './helpers.mjs';
 import { DATA } from './flows.mjs';
 
 test.skip(({ transport }) => transport !== 'http', 'axe runs on the served build');
@@ -42,7 +42,7 @@ async function audit(page, testInfo, label) {
 /** Open the game with a save at `step`, press «Продолжить» and wait for `type`. */
 async function resumeInto(page, gameUrl, step, type) {
   await page.goto(gameUrl);
-  await page.evaluate(([k, s]) => localStorage.setItem(k, JSON.stringify({ v: 1, step: s })), [KEY, step]);
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, saveValue(step)]);
   await page.waitForLoadState('networkidle');
   await page.reload();
   await bootDone(page);
@@ -84,7 +84,7 @@ test('Intro A–D have no violations', async ({ page, gameUrl }, testInfo) => {
 
 test('resume screen has no violations', async ({ page, gameUrl }, testInfo) => {
   await page.goto(gameUrl);
-  await page.evaluate(([k, s]) => localStorage.setItem(k, JSON.stringify({ v: 1, step: s })), [KEY, STEP.d7]);
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [KEY, saveValue(STEP.d7)]);
   await page.waitForLoadState('networkidle');
   await page.reload();
   await bootDone(page);
